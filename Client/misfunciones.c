@@ -34,7 +34,7 @@
 /**************************************************************************/
 // elegir 1 o 2 autores y sustituir "Apellidos, Nombre" manteniendo el formato
 //char* autores="Autor: Apellidos, Nombre"; // un solo autor
-char* autores="Autor: Orduna Lagarma, Pablo\nAutor: Naval Alcala, Daniel" // dos autores
+char* autores="Autor: Orduna Lagarma, Pablo\nAutor: Naval Alcala, Daniel"; // dos autores
 
 // variable para indicar si mostrar información extra durante la ejecución
 // como la mayoría de las funciones necesitaran consultarla, la definimos global

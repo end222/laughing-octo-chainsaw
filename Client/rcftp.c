@@ -27,6 +27,7 @@
 
 #include <netinet/in.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "rcftp.h"
 
 

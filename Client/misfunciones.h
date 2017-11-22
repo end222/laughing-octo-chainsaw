@@ -1,9 +1,8 @@
 /****************************************************************************/
 /* Plantilla para cabeceras de funciones del cliente (rcftpclient)          */
 /* Plantilla $Revision: 1.7 $ */
-/* Autor: Apellidos, Nombre */
-/* Autor: Apellidos, Nombre (segundo autor, si existe) */
-#warning HAY QUE PONER EL NOMBRE (Y BORRAR EL WARNING)
+/* Autor: Orduna Lagarma, Pablo */
+/* Autor: Naval Alcala, Daniel */
 /****************************************************************************/
 
 /**

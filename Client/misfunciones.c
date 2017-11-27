@@ -192,6 +192,8 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 	return sock;
 }
 
+struct rcftp_msg construirMensajeRCFTP(int datos){
+
 
 /**************************************************************************/
 /*  algoritmo 1 (basico)  */
@@ -199,8 +201,16 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 void alg_basico(int socket, struct addrinfo *servinfo) {
 
 	printf("Comunicación con algoritmo básico\n");
+	
+	char * buffer;
+	bool ultimoMensaje = false;
+	bool ultimoMensajeConfirmado = false;
+	int datos = readtobuffer(buffer, RCFTP_BUFLEN);
+	if (datos == 0){
+		ultimoMensaje = true;
+	}
 
-#warning FALTA IMPLEMENTAR EL ALGORITMO BASICO
+
 	printf("Algoritmo no implementado\n");
 }
 

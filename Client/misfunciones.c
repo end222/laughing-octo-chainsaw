@@ -5,6 +5,11 @@
 /* recomienda modificar solamente este fichero y su fichero de cabeceras asociado. */
 /****************************************************************************/
 
+#define F_VERBOSE       0x1
+#define S_SYSERROR 2
+#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+
 /**************************************************************************/
 /* INCLUDES                                                               */
 /**************************************************************************/
@@ -23,6 +28,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <math.h>
+#include <stdbool.h>
 #include "rcftp.h" // Protocolo RCFTP
 #include "rcftpclient.h" // Funciones ya implementadas
 #include "multialarm.h" // Gestión de timeouts
@@ -192,8 +198,86 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 	return sock;
 }
 
-struct rcftp_msg construirMensajeRCFTP(int datos){
+struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 
+	struct rcftp_msg mensaje;
+	
+	// Construimos el mensaje
+	mensaje.sum = 0;
+	mensaje.version = RCFTP_VERSION_1;
+	mensaje.flags = F_NOFLAGS;
+	mensaje.len = htons(longitud);
+	mensaje.buffer = buffer;
+	mensaje.next = htonl(0);
+
+	return mensaje;
+}
+
+void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr_storage remote, socklen_t remotelen, unsigned int flags) {
+        ssize_t sentsize;
+
+        if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,(struct sockaddr *)&remote,remotelen)) != sizeof(sendbuffer)) {
+                if (sentsize!=-1)
+                        fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
+                else
+                        perror("Error en sendto");
+                exit(S_SYSERROR);
+        }
+
+        // print response if in verbose mode
+        if (flags & F_VERBOSE) {
+                printf("Mensaje RCFTP " ANSI_COLOR_MAGENTA "enviado" ANSI_COLOR_RESET ":\n");
+                print_rcftp_msg(&sendbuffer,sizeof(sendbuffer));
+        }
+}
+
+ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
+        ssize_t recvsize;
+
+        *remotelen = sizeof(*remote);
+        recvsize = recvfrom(socket,(char *)buffer,buflen,0,(struct sockaddr *)remote,remotelen);
+        if (recvsize<0 && errno!=EAGAIN) { // en caso de socket no bloqueante
+                //if (recvsize<0 && errno!=EINTR) { // en caso de socket bloqueante (no funciona en GNU/Linux)
+                perror("Error en recvfrom: ");
+                exit(S_SYSERROR);
+        } else if (*remotelen>sizeof(*remote)) {
+                fprintf(stderr,"Error: la dirección del cliente ha sido truncada\n");
+                exit(S_SYSERROR);
+        }
+        return recvsize;
+}
+
+int esMensajeValido(struct rcftp_msg recvbuffer) {
+        int esperado=1;
+        //uint16_t aux;
+
+        if (recvbuffer.version!=RCFTP_VERSION_1) { // versión incorrecta
+                esperado=0;
+                fprintf(stderr,"Error: recibido un mensaje con versión incorrecta\n");
+        }
+        if (recvbuffer.next!=0) { // next incorrecto
+                esperado=0;
+                fprintf(stderr,"Error: recibido un mensaje con NEXT incorrecto\n");
+        }
+        if (issumvalid(&recvbuffer,sizeof(recvbuffer))==0) { // checksum incorrecto
+                esperado=0;
+                fprintf(stderr,"Error: recibido un mensaje con checksum incorrecto\n"); /* (esperaba ");
+                aux=recvbuffer.sum;
+                recvbuffer.sum=0;
+                fprintf(stderr,"0x%x)\n",ntohs(xsum((char*)&recvbuffer,sizeof(recvbuffer))));
+                recvbuffer.sum=aux;*/
+        }
+        return esperado;
+}
+
+bool esLaRespuestaEsperada(struct rcftp_msg mensaje, struct rcftp_msg respuesta){
+	if((respuesta.flags/F_BUSY)%2!=1 && (respuesta.flags/F_ABORT)%2!=1 && (respuesta.flags/F_FIN)%2==1){
+		return respuesta.next == mensaje.numseq + mensaje.len;
+	}
+	else {
+		return false;
+	}
+}
 
 /**************************************************************************/
 /*  algoritmo 1 (basico)  */
@@ -202,15 +286,35 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 
 	printf("Comunicación con algoritmo básico\n");
 	
-	char * buffer;
+	char buffer[RCFTP_BUFLEN];
+
 	bool ultimoMensaje = false;
 	bool ultimoMensajeConfirmado = false;
-	int datos = readtobuffer(buffer, RCFTP_BUFLEN);
-	if (datos == 0){
+	
+	int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
+	if (longitud == 0){
 		ultimoMensaje = true;
 	}
 
+	struct rcftp_msg mensaje = construirMensajeRCFTP(longitud, buffer);
+	struct rcftp_msg respuesta;
 
+	while(!ultimoMensajeConfirmado){
+		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
+		recibir(socket, respuesta, RCFTP_BUFLEN, servinfo->ai_addr, servinfo->ai_addrlen);
+		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
+			if(ultimoMensaje){
+				ultimoMensajeConfirmado = true;
+			}
+			else{
+				int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
+				if(longitud == 0){
+					ultimoMensaje = true;
+				}
+				mensaje = construirMensajeRCFTP(longitud, buffer);
+			}
+		}
+	}
 	printf("Algoritmo no implementado\n");
 }
 

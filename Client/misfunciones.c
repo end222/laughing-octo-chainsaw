@@ -201,13 +201,16 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 
 	struct rcftp_msg mensaje;
-	
 	// Construimos el mensaje
 	mensaje.sum = 0;
 	mensaje.version = RCFTP_VERSION_1;
 	mensaje.flags = F_NOFLAGS;
 	mensaje.len = htons(longitud);
-	strcpy(*(mensaje.buffer),buffer);
+	int i = 0;
+	while(i < RCFTP_BUFLEN){
+		mensaje.buffer[i] = (uint8_t)buffer[i];
+		i++;
+	}
 	mensaje.next = htonl(0);
 
 	return mensaje;
@@ -215,15 +218,17 @@ struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 
 void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen_t remotelen, unsigned int flags) {
         ssize_t sentsize;
-
+	printf("JJ\n");
         if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,remote,remotelen)) != sizeof(sendbuffer)) {
+		printf("HOLI\n");
                 if (sentsize!=-1)
                         fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
                 else
                         perror("Error en sendto");
                 exit(S_SYSERROR);
         }
-
+	printf("GG\n");
+	printf("C\n");
         // print response if in verbose mode
         if (flags & F_VERBOSE) {
                 printf("Mensaje RCFTP " ANSI_COLOR_MAGENTA "enviado" ANSI_COLOR_RESET ":\n");
@@ -290,7 +295,6 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 
 	bool ultimoMensaje = false;
 	bool ultimoMensajeConfirmado = false;
-	
 	int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
 	if (longitud == 0){
 		ultimoMensaje = true;
@@ -300,9 +304,12 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	struct rcftp_msg respuesta;
 
 	socklen_t* remotelen = 0;
+	printf("A\n");
 	while(!ultimoMensajeConfirmado){
 		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
+		printf("Enviado\n");
 		recibir(socket, &respuesta, RCFTP_BUFLEN, servinfo->ai_addr, remotelen);
+		printf("B\n");
 		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
 			if(ultimoMensaje){
 				ultimoMensajeConfirmado = true;

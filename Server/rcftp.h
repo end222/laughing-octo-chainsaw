@@ -30,7 +30,7 @@
 /*********************************************************/
 
 #include <netinet/in.h>
-
+#include <stdint.h>
 /**
  * Longitud de buffer de datos
  */

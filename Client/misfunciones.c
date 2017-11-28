@@ -207,16 +207,16 @@ struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 	mensaje.version = RCFTP_VERSION_1;
 	mensaje.flags = F_NOFLAGS;
 	mensaje.len = htons(longitud);
-	mensaje.buffer = buffer;
+	strcpy(*(mensaje.buffer),buffer);
 	mensaje.next = htonl(0);
 
 	return mensaje;
 }
 
-void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr_storage remote, socklen_t remotelen, unsigned int flags) {
+void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen_t remotelen, unsigned int flags) {
         ssize_t sentsize;
 
-        if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,(struct sockaddr *)&remote,remotelen)) != sizeof(sendbuffer)) {
+        if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,&remote,remotelen)) != sizeof(sendbuffer)) {
                 if (sentsize!=-1)
                         fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
                 else
@@ -231,7 +231,7 @@ void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr_storage remote, 
         }
 }
 
-ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
+ssize_t recibir(int socket, struct rcftp_msg buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
         ssize_t recvsize;
 
         *remotelen = sizeof(*remote);
@@ -325,7 +325,7 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 
 	printf("Comunicación con algoritmo stop&wait\n");
 
-#warning FALTA IMPLEMENTAR EL ALGORITMO STOP-WAIT
+// FALTA IMPLEMENTAR EL ALGORITMO STOP-WAIT
 	printf("Algoritmo no implementado\n");
 }
 
@@ -336,7 +336,7 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 
 	printf("Comunicación con algoritmo go-back-n\n");
 
-#warning FALTA IMPLEMENTAR EL ALGORITMO GO-BACK-N
+// FALTA IMPLEMENTAR EL ALGORITMO GO-BACK-N
 	printf("Algoritmo no implementado\n");
 }
 

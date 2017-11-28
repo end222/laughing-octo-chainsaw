@@ -231,7 +231,7 @@ void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen
         }
 }
 
-ssize_t recibir(int socket, struct rcftp_msg buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
+ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
         ssize_t recvsize;
 
         *remotelen = sizeof(*remote);
@@ -301,7 +301,7 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 
 	while(!ultimoMensajeConfirmado){
 		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
-		recibir(socket, respuesta, RCFTP_BUFLEN, servinfo->ai_addr, servinfo->ai_addrlen);
+		recibir(socket, &respuesta, RCFTP_BUFLEN, servinfo->ai_addr, servinfo->ai_addrlen);
 		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
 			if(ultimoMensaje){
 				ultimoMensajeConfirmado = true;

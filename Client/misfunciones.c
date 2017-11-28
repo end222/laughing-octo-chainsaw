@@ -216,7 +216,7 @@ struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen_t remotelen, unsigned int flags) {
         ssize_t sentsize;
 
-        if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,&remote,remotelen)) != sizeof(sendbuffer)) {
+        if ((sentsize=sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,remote,remotelen)) != sizeof(sendbuffer)) {
                 if (sentsize!=-1)
                         fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
                 else
@@ -231,11 +231,11 @@ void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen
         }
 }
 
-ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr_storage *remote, socklen_t *remotelen) {
+ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr *remote, socklen_t *remotelen) {
         ssize_t recvsize;
 
         *remotelen = sizeof(*remote);
-        recvsize = recvfrom(socket,(char *)buffer,buflen,0,(struct sockaddr *)remote,remotelen);
+        recvsize = recvfrom(socket,(char *)buffer,buflen,0,remote,remotelen);
         if (recvsize<0 && errno!=EAGAIN) { // en caso de socket no bloqueante
                 //if (recvsize<0 && errno!=EINTR) { // en caso de socket bloqueante (no funciona en GNU/Linux)
                 perror("Error en recvfrom: ");
@@ -299,9 +299,10 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	struct rcftp_msg mensaje = construirMensajeRCFTP(longitud, buffer);
 	struct rcftp_msg respuesta;
 
+	socklen_t* remotelen = 0;
 	while(!ultimoMensajeConfirmado){
 		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
-		recibir(socket, &respuesta, RCFTP_BUFLEN, servinfo->ai_addr, servinfo->ai_addrlen);
+		recibir(socket, &respuesta, RCFTP_BUFLEN, servinfo->ai_addr, remotelen);
 		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
 			if(ultimoMensaje){
 				ultimoMensajeConfirmado = true;

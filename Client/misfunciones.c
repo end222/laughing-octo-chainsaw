@@ -198,42 +198,41 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 	return sock;
 }
 
+/*
+ * Funcion dedicada a la construccion y declaracion de variables del mensaje
+ */
+
 struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
 	struct rcftp_msg mensaje;
-	// Construimos el mensaje
-	mensaje.sum = htons(0);
+	// Se realiza la construccion del mensaje
 	mensaje.version = RCFTP_VERSION_1;
 	mensaje.flags = F_NOFLAGS;
 	mensaje.len = htons(longitud);
-//	strcpy((char * restrict)mensaje->buffer,buffer);
-	int i = 0;
-	while(i < RCFTP_BUFLEN){
-		mensaje.buffer[i] = (uint8_t)buffer[i];
-		i++;
-	}
+	strcpy((char * restrict)mensaje.buffer,buffer);
 	mensaje.next = htonl(0);
+	mensaje.numseq = htonl(0);
 	return mensaje;
 }
 
 void enviar(int s, struct rcftp_msg sendbuffer, struct sockaddr *remote, socklen_t remotelen, unsigned int flags) {
         ssize_t sentsize = sendto(s,(char *)&sendbuffer,sizeof(sendbuffer),0,remote,remotelen);
-	printf("JJ\n");
         if (sentsize != sizeof(sendbuffer)) {
-		printf("HOLI\n");
                 if (sentsize!=-1)
                         fprintf(stderr,"Error: enviados %d bytes de un mensaje de %d bytes\n",(int)sentsize,(int)sizeof(sendbuffer));
                 else
                         perror("Error en sendto");
                 exit(S_SYSERROR);
         }
-	printf("GG\n");
-	printf("C\n");
         // print response if in verbose mode
         if (flags & F_VERBOSE) {
                 printf("Mensaje RCFTP " ANSI_COLOR_MAGENTA "enviado" ANSI_COLOR_RESET ":\n");
                 print_rcftp_msg(&sendbuffer,sizeof(sendbuffer));
         }
 }
+
+/*
+ * La funcion realiza la recepcion del mensaje que transmite el servidor
+ */
 
 ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockaddr *remote, socklen_t *remotelen) {
         ssize_t recvsize;
@@ -251,37 +250,44 @@ ssize_t recibir(int socket, struct rcftp_msg *buffer, int buflen, struct sockadd
         return recvsize;
 }
 
+/*
+ * Funcion dedicada a la comprobacion de la validez del mensaje recibido (Checksum y version)
+ */
+
 int esMensajeValido(struct rcftp_msg recvbuffer) {
         int esperado=1;
-        //uint16_t aux;
-
+	// Comprueba la version
         if (recvbuffer.version!=RCFTP_VERSION_1) { // versión incorrecta
                 esperado=0;
                 fprintf(stderr,"Error: recibido un mensaje con versión incorrecta\n");
         }
-        if (recvbuffer.next!=0) { // next incorrecto
-                esperado=0;
-                fprintf(stderr,"Error: recibido un mensaje con NEXT incorrecto\n");
-        }
+	// Comprueba el checksum
         if (issumvalid(&recvbuffer,sizeof(recvbuffer))==0) { // checksum incorrecto
                 esperado=0;
-                fprintf(stderr,"Error: recibido un mensaje con checksum incorrecto\n"); /* (esperaba ");
-                aux=recvbuffer.sum;
+                fprintf(stderr,"Error: recibido un mensaje con checksum incorrecto\n (esperaba ");
                 recvbuffer.sum=0;
                 fprintf(stderr,"0x%x)\n",ntohs(xsum((char*)&recvbuffer,sizeof(recvbuffer))));
-                recvbuffer.sum=aux;*/
         }
         return esperado;
 }
 
+/*
+ * Funcion que realiza diferentes comprobaciones referentes a los flags del mensaje y la respuesta para
+ * saber si es la respuesta esperada
+ */
+
 bool esLaRespuestaEsperada(struct rcftp_msg mensaje, struct rcftp_msg respuesta){
-	if((respuesta.flags/F_BUSY)%2!=1 && (respuesta.flags/F_ABORT)%2!=1 && (respuesta.flags/F_FIN)%2==1){
-		return respuesta.next == mensaje.numseq + mensaje.len;
+	// Se comprueba que mensaje y respuesta tiene simultaneamente activado el flag fin, ademas de que no haya flags de ocupado/abortar
+	// en respuesta.
+	if((respuesta.flags/F_BUSY)%2!=1 && (respuesta.flags/F_ABORT)%2!=1 && (respuesta.flags/F_FIN)%2==(mensaje.flags/F_FIN)%2){
+		//Se comprueba si respuesta.next es igual a mensaje.numseq + mensaje.len
+		return htonl(respuesta.next) == htonl(mensaje.numseq) + htons(mensaje.len);
 	}
 	else {
 		return false;
 	}
 }
+
 
 /**************************************************************************/
 /*  algoritmo 1 (basico)  */
@@ -289,7 +295,7 @@ bool esLaRespuestaEsperada(struct rcftp_msg mensaje, struct rcftp_msg respuesta)
 void alg_basico(int socket, struct addrinfo *servinfo) {
 
 	printf("Comunicación con algoritmo básico\n");
-	
+
 	char buffer[RCFTP_BUFLEN];
 
 	bool ultimoMensaje = false;
@@ -299,22 +305,25 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 		ultimoMensaje = true;
 	}
 
+	// Se construye el mensaje
 	struct rcftp_msg mensaje;
 	mensaje = construirMensajeRCFTP(longitud, buffer);
 	struct rcftp_msg respuesta;
-
+	struct sockaddr remote;
 	socklen_t remotelen = 0;
-	printf("A\n");
+	mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+	// Bucle de enviar/recibir
 	while(!ultimoMensajeConfirmado){
 		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
-		printf("Enviado\n");
-		recibir(socket, &respuesta, RCFTP_BUFLEN, servinfo->ai_addr, &remotelen);
-		printf("B\n");
+		recibir(socket, &respuesta, sizeof(respuesta), &remote, &remotelen);
 		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
+			// Se ha cumplido que el mensaje es valido y la respuesta es la esperada
 			if(ultimoMensaje){
+				// Ha llegado el ultimo mensaje 
 				ultimoMensajeConfirmado = true;
 			}
 			else{
+				// No es el ultimo y, por tanto, se construye el siguiente
 				int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
 				if(longitud == 0){
 					ultimoMensaje = true;
@@ -322,8 +331,10 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 				mensaje = construirMensajeRCFTP(longitud, buffer);
 			}
 		}
+		// Se actualiza el numero de secuencia y el checksum
+		mensaje.numseq = respuesta.next;
+		mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
 	}
-	printf("Algoritmo no implementado\n");
 }
 
 /**************************************************************************/

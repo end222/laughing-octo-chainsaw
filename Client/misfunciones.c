@@ -79,7 +79,7 @@ struct addrinfo* obtener_struct_direccion(char *dir_servidor, char *servicio, ch
 	}
    
 	if (f_verbose) { printf("\tTipo de comunicacion: "); fflush(stdout);}
-	hints.ai_socktype=SOCK_STREAM;// especificar tipo de socket 
+	hints.ai_socktype=SOCK_DGRAM;// especificar tipo de socket 
 	if (f_verbose) { 
 		switch (hints.ai_socktype) {
 			case SOCK_STREAM: printf("flujo (TCP)\n"); break;
@@ -199,21 +199,19 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
 }
 
 struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
-
 	struct rcftp_msg mensaje;
 	// Construimos el mensaje
 	mensaje.sum = htons(0);
 	mensaje.version = RCFTP_VERSION_1;
 	mensaje.flags = F_NOFLAGS;
 	mensaje.len = htons(longitud);
-	strcpy((char * restrict)mensaje.buffer,buffer);
-//	int i = 0;
-//	while(i < RCFTP_BUFLEN){
-//		mensaje.buffer[i] = (uint8_t)buffer[i];
-//		i++;
-//	}
+//	strcpy((char * restrict)mensaje->buffer,buffer);
+	int i = 0;
+	while(i < RCFTP_BUFLEN){
+		mensaje.buffer[i] = (uint8_t)buffer[i];
+		i++;
+	}
 	mensaje.next = htonl(0);
-
 	return mensaje;
 }
 
@@ -301,7 +299,8 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 		ultimoMensaje = true;
 	}
 
-	struct rcftp_msg mensaje = construirMensajeRCFTP(longitud, buffer);
+	struct rcftp_msg mensaje;
+	mensaje = construirMensajeRCFTP(longitud, buffer);
 	struct rcftp_msg respuesta;
 
 	socklen_t remotelen = 0;

@@ -37,6 +37,9 @@ endif
 ifeq ($(UNAME), SunOS) # hendrix
 	RCFTPOPT= -Wall -lsocket -lnsl -lrt
 endif
+ifeq ($(UNAME), FreeBSD) #eeePC
+	CC=cc
+endif
 
 
 #######################

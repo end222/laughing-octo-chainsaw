@@ -62,10 +62,10 @@ misfunciones.o: misfunciones.c misfunciones.h
 
 # objetivo para comprimir los fuentes tal y como se piden para la entrega
 tarea:
-	tar chf "tareaRC_${LOGNAME}.tar" *.c *.h ?akefile
-	gzip "tareaRC_${LOGNAME}.tar"
+	tar chf "tareaRC_Pablo_Daniel.tar" *.c *.h ?akefile
+	gzip "tareaRC_Pablo_Daniel.tar"
 
 # objetivo para limpiar: borra todo lo generado
 clean:
-	-rm -f rcftpclient rcftpclient.o rcftp.o multialarm.o misfunciones.o vemision.o "tareaRC_${LOGNAME}.tar.gz" 
+	-rm -f rcftpclient rcftpclient.o rcftp.o multialarm.o misfunciones.o vemision.o "tareaRC_Pablo_Daniel.tar.gz" 
 	

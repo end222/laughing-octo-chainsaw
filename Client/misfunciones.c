@@ -202,23 +202,22 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
  * Funcion dedicada a la construccion y declaracion de variables del mensaje
  */
 
-struct rcftp_msg construirMensajeRCFTP(int numseq, int longitud, char * buffer, bool esUltimo){
-	struct rcftp_msg mensaje;
-	// Se realiza la construccion del mensaje
+struct rcftp_msg construirMensajeRCFTP(int numseq, int longitud, char * buffer, bool esUltimo, struct rcftp_msg mensaje){
+
 	mensaje.version = RCFTP_VERSION_1;
 	mensaje.len = htons(longitud);
-	strcpy((char * restrict)mensaje.buffer,buffer);
+
 	mensaje.next = htonl(0);
 	mensaje.numseq = htonl(numseq);
 	mensaje.sum = 0;
 
+	// Comprobamos si es el ultimo mensaje para poner los flags correctamente
 	if(esUltimo){
 		mensaje.flags = F_FIN;
 	}
 	else{
 		mensaje.flags = F_NOFLAGS;
 	}
-
 	return mensaje;
 }
 
@@ -309,15 +308,17 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	bool ultimoMensaje = false;
 	bool ultimoMensajeConfirmado = false;
 	struct rcftp_msg mensaje;
-	int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
-	numseq = numseq + longitud;
 
+	int longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
+
+	// Comprobamos que no se ha mandado un mensaje vacio
 	if (longitud == 0){
 		ultimoMensaje = true;
 	}
 
 	// Se construye el mensaje
-	mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje);
+	mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
+	numseq = numseq + longitud;
 	struct rcftp_msg respuesta;
 	struct sockaddr remote;
 	socklen_t remotelen = 0;
@@ -339,14 +340,17 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 			else{
 
 				// No es el ultimo y, por tanto, se construye el siguiente
-				int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
+				int longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
 
+				// Comprobamos que no se ha mandado un mensaje vacio
 				if(longitud == 0){
 					ultimoMensaje = true;
 				}
 
-				mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje);
+				mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
 				mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+				
+				// Calculamos el siguiente numero de secuencia 
 				numseq = numseq + longitud;
 			}
 		}

@@ -202,15 +202,23 @@ int initsocket(struct addrinfo *servinfo, char f_verbose){
  * Funcion dedicada a la construccion y declaracion de variables del mensaje
  */
 
-struct rcftp_msg construirMensajeRCFTP(int longitud, char * buffer){
+struct rcftp_msg construirMensajeRCFTP(int numseq, int longitud, char * buffer, bool esUltimo){
 	struct rcftp_msg mensaje;
 	// Se realiza la construccion del mensaje
 	mensaje.version = RCFTP_VERSION_1;
-	mensaje.flags = F_NOFLAGS;
 	mensaje.len = htons(longitud);
 	strcpy((char * restrict)mensaje.buffer,buffer);
 	mensaje.next = htonl(0);
-	mensaje.numseq = htonl(0);
+	mensaje.numseq = htonl(numseq);
+	mensaje.sum = 0;
+
+	if(esUltimo){
+		mensaje.flags = F_FIN;
+	}
+	else{
+		mensaje.flags = F_NOFLAGS;
+	}
+
 	return mensaje;
 }
 
@@ -265,8 +273,8 @@ int esMensajeValido(struct rcftp_msg recvbuffer) {
         if (issumvalid(&recvbuffer,sizeof(recvbuffer))==0) { // checksum incorrecto
                 esperado=0;
                 fprintf(stderr,"Error: recibido un mensaje con checksum incorrecto\n (esperaba ");
-                recvbuffer.sum=0;
-                fprintf(stderr,"0x%x)\n",ntohs(xsum((char*)&recvbuffer,sizeof(recvbuffer))));
+                //recvbuffer.sum=0;
+                //fprintf(stderr,"0x%x)\n",ntohs(xsum((char*)&recvbuffer,sizeof(recvbuffer))));
         }
         return esperado;
 }
@@ -297,43 +305,52 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 	printf("Comunicación con algoritmo básico\n");
 
 	char buffer[RCFTP_BUFLEN];
-
+	int numseq = 0;
 	bool ultimoMensaje = false;
 	bool ultimoMensajeConfirmado = false;
+	struct rcftp_msg mensaje;
 	int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
+	numseq = numseq + longitud;
+
 	if (longitud == 0){
 		ultimoMensaje = true;
 	}
 
 	// Se construye el mensaje
-	struct rcftp_msg mensaje;
-	mensaje = construirMensajeRCFTP(longitud, buffer);
+	mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje);
 	struct rcftp_msg respuesta;
 	struct sockaddr remote;
 	socklen_t remotelen = 0;
 	mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+
 	// Bucle de enviar/recibir
 	while(!ultimoMensajeConfirmado){
 		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
 		recibir(socket, &respuesta, sizeof(respuesta), &remote, &remotelen);
+
 		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta)){
+
 			// Se ha cumplido que el mensaje es valido y la respuesta es la esperada
 			if(ultimoMensaje){
+
 				// Ha llegado el ultimo mensaje 
 				ultimoMensajeConfirmado = true;
 			}
 			else{
+
 				// No es el ultimo y, por tanto, se construye el siguiente
 				int longitud = readtobuffer(buffer, RCFTP_BUFLEN);
+
 				if(longitud == 0){
 					ultimoMensaje = true;
 				}
-				mensaje = construirMensajeRCFTP(longitud, buffer);
+
+				mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje);
+				mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+				numseq = numseq + longitud;
 			}
 		}
-		// Se actualiza el numero de secuencia y el checksum
-		mensaje.numseq = respuesta.next;
-		mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+
 	}
 }
 

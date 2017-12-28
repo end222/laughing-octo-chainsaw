@@ -366,6 +366,9 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 
 	signal(SIGALRM,handle_sigalrm);
 
+	int sockflags;
+	sockflags = fcntl (socket, F_GETFL, 0);
+	fcntl(socket, F_SETFL, sockflags | O_NONBLOCK);
 	printf("Comunicación con algoritmo stop&wait\n");
 	char buffer[RCFTP_BUFLEN];
 	int numseq = 0;

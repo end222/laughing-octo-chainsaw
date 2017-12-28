@@ -29,6 +29,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <stdbool.h>
+#include <signal.h>
 #include "rcftp.h" // Protocolo RCFTP
 #include "rcftpclient.h" // Funciones ya implementadas
 #include "multialarm.h" // Gestión de timeouts
@@ -363,10 +364,74 @@ void alg_basico(int socket, struct addrinfo *servinfo) {
 /**************************************************************************/
 void alg_stopwait(int socket, struct addrinfo *servinfo) {
 
-	printf("Comunicación con algoritmo stop&wait\n");
+	signal(SIGALRM,handle_sigalrm);
 
-// FALTA IMPLEMENTAR EL ALGORITMO STOP-WAIT
-	printf("Algoritmo no implementado\n");
+	printf("Comunicación con algoritmo stop&wait\n");
+	char buffer[RCFTP_BUFLEN];
+	int numseq = 0;
+	bool ultimoMensaje = false;
+	bool ultimoMensajeConfirmado = false;
+	struct rcftp_msg mensaje;
+
+	int longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
+
+	// Comprobamos que no se ha mandado un mensaje vacio
+	if (longitud == 0){
+		ultimoMensaje = true;
+	}
+
+	// Se construye el mensaje
+	mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
+	numseq = numseq + longitud;
+	struct rcftp_msg respuesta;
+	struct sockaddr remote;
+	socklen_t remotelen = 0;
+	mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+
+	// Bucle de enviar/recibir
+	while(!ultimoMensajeConfirmado){
+		enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
+		
+		addtimeout();
+		
+		int tamano = 0;
+		int contador = timeouts_vencidos;
+
+		while(tamano == 0 && contador == timeouts_vencidos){
+			tamano = recibir(socket, &respuesta, sizeof(respuesta), &remote, &remotelen);
+		}
+
+		if(tamano > 0){
+			canceltimeout();
+		}
+
+		if(esMensajeValido(respuesta) && esLaRespuestaEsperada(mensaje, respuesta) && tamano > 0){
+
+			// Se ha cumplido que el mensaje es valido y la respuesta es la esperada
+			if(ultimoMensaje){
+
+				// Ha llegado el ultimo mensaje 
+				ultimoMensajeConfirmado = true;
+			}
+			else{
+
+				// No es el ultimo y, por tanto, se construye el siguiente
+				int longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
+
+				// Comprobamos que no se ha mandado un mensaje vacio
+				if(longitud == 0){
+					ultimoMensaje = true;
+				}
+
+				mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
+				mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+				
+				// Calculamos el siguiente numero de secuencia 
+				numseq = numseq + longitud;
+			}
+		}
+
+	}
 }
 
 /**************************************************************************/

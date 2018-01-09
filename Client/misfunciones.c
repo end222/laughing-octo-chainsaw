@@ -457,7 +457,6 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 
 	setwindowsize(window);
 	printf("Comunicación con algoritmo go-back-n\n");
-	bool espacioLibreEnVentanaEmision = true;
 	bool ultimoMensaje = false;
 	bool ultimoMensajeConfirmado = false;
 	int tamanoRecv;
@@ -490,8 +489,6 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 		
 		if(tamanoRecv > 0){
 			
-			printf("b\n");
-			
 			if(esMensajeValido(respuesta) && esLaRespuestaEsperadaVentana(mensaje, respuesta)){
 				canceltimeout();
 				freewindow(ntohl(respuesta.next));
@@ -501,7 +498,7 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 					ultimoMensajeConfirmado = true;
 				}
 			}
-			else if(respuesta.len == 0 && respuesta.flags == F_FIN){
+			if(respuesta.len == 0 && respuesta.flags == F_FIN){
 				canceltimeout();
 				ultimoMensajeConfirmado = true;
 			}
@@ -510,7 +507,7 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 		printf("%d\n",getnumtimeouts());
 		printf("Timeouts: %d Procesados: %d\n",timeouts_vencidos, timeouts_procesados);
 		printf("EspacioLibre: %d\n",getfreespace());
-		
+		printvemision();	
 		if(timeouts_procesados != timeouts_vencidos){
 			timeouts_procesados++;
 			int max = RCFTP_BUFLEN;

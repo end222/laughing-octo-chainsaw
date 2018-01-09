@@ -29,8 +29,8 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#include <stdbool.h>
 #include <string.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 #include <stdint.h>
 
@@ -52,7 +52,7 @@ static char vvacia=1; // para diferenciar entre vacía y llena si firstelem==las
 static uint32_t numseqfirst=0;
 
 bool perteneceVentana(uint32_t next){
-	return (numseqfirst < next && next <= (numseqfirst + totalelems - getfreespace()));
+        return (numseqfirst < next && next <= (numseqfirst + totalelems - getfreespace()));
 }
 
 void setwindowsize(unsigned int total) {
@@ -117,11 +117,14 @@ uint32_t getdatatoresend(char * buffer, int * len) {
 	uint32_t numseq;
 
 	// calculamos si tenemos los len bytes para dar o no
-	if ((totalelems+lastelem-resendelem)%totalelems<*len) {
-		//fprintf(stderr,"getdatatoresend: intentando reenviar más datos (%d B) de los contenidos en la ventana de emisión (%d B)\n",len,totalelems-getfreespace());
-		//exit(3);
-		*len=totalelems-getfreespace();
+	if (resendelem<lastelem) { // los datos a enviar están ordenados
+		if ((lastelem-resendelem)<*len)
+			*len=lastelem-resendelem;
+	} else { // datos en final e inicio de ventana circular
+		if ((totalelems-resendelem+lastelem)<*len)
+			*len=totalelems-resendelem+lastelem;
 	}
+
 	// calculamos el número de secuencia
 	numseq=numseqfirst+(totalelems+resendelem-firstelem)%totalelems;
 	// copiamos los datos
@@ -129,7 +132,7 @@ uint32_t getdatatoresend(char * buffer, int * len) {
 		memcpy(buffer,&vemision[resendelem],*len);
 	} else { // datos al final e inicio de ventana
 		memcpy(buffer,&vemision[resendelem],totalelems-resendelem);
-		memcpy(buffer,&vemision[0],*len-(totalelems-resendelem));
+		memcpy(&buffer[totalelems-resendelem],&vemision[0],*len-(totalelems-resendelem));
 	}
 	// actualizamos indice
 	resendelem=(resendelem+(*len))%totalelems;

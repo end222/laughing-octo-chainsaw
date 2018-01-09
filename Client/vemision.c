@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
+#include <stdbool.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <stdint.h>
@@ -50,6 +51,11 @@ static char vvacia=1; // para diferenciar entre vacía y llena si firstelem==las
  */
 static uint32_t numseqfirst=0;
 
+bool perteneceVentana(uint32_t next){
+	printf("%u\n",next);
+	printf("%u\n",numseqfirst);
+	return (numseqfirst < next && next <= (numseqfirst + totalelems - getfreespace()));
+}
 
 void setwindowsize(unsigned int total) {
 	if (totalelems!=0) {

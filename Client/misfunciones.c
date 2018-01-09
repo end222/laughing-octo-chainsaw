@@ -296,7 +296,14 @@ bool esLaRespuestaEsperada(struct rcftp_msg mensaje, struct rcftp_msg respuesta)
 	}
 }
 
-
+bool esLaRespuestaEsperadaVentana(struct rcftp_msg mensaje, struct rcftp_msg respuesta){
+	if((respuesta.flags/F_BUSY)%2!=1 && (respuesta.flags/F_ABORT)%2!=1){
+		return perteneceVentana(ntohl(respuesta.next));
+	}
+	else {
+		return false;
+	}
+}
 /**************************************************************************/
 /*  algoritmo 1 (basico)  */
 /**************************************************************************/
@@ -442,10 +449,69 @@ void alg_stopwait(int socket, struct addrinfo *servinfo) {
 /**************************************************************************/
 void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 
+	signal(SIGALRM,handle_sigalrm);
+	
+	int sockflags;
+	sockflags = fcntl (socket, F_GETFL, 0);
+	fcntl(socket, F_SETFL, sockflags | O_NONBLOCK);
+
+	setwindowsize(window);
 	printf("Comunicación con algoritmo go-back-n\n");
+	bool espacioLibreEnVentanaEmision = true;
+	bool ultimoMensaje = false;
+	bool ultimoMensajeConfirmado = false;
+	int tamanoRecv;
+	int longitud;
+	int numConfirmados = 0;
+	char buffer[RCFTP_BUFLEN];
+	int numseq = 0;
+	struct rcftp_msg mensaje;
+	int i = 0;
+	int iConf = 0;
+	struct rcftp_msg respuesta;
+	struct sockaddr remote;
+	socklen_t remotelen = 0;
+	int timeouts_procesados = 0;
+	while(ultimoMensajeConfirmado == false){
+		if(getfreespace() > 0 && !ultimoMensaje){
+			longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
+			if (longitud == 0){
+				ultimoMensaje = true;
+			}
+			mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
+			mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
+			numseq = numseq + longitud;
+			enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
+			addtimeout();
+			addsentdatatowindow((char *)mensaje.buffer,longitud);
+		}
+		tamanoRecv = recibir(socket, &respuesta, sizeof(respuesta), &remote, &remotelen);
+		if(tamanoRecv > 0){
+			printf("b\n");
+			if(esMensajeValido(respuesta) && esLaRespuestaEsperadaVentana(mensaje, respuesta)){
+				printf("c\n");
+				canceltimeout();
+				freewindow(ntohl(respuesta.next));
+				if(ultimoMensaje && respuesta.flags == mensaje.flags){
+					printf("d\n");
+					ultimoMensajeConfirmado = true;
+				}
+			}
+			else if(respuesta.len == 0 && respuesta.flags == F_FIN){
+				canceltimeout();
+				ultimoMensajeConfirmado = true;
+			}
+		}
+		if(timeouts_procesados != timeouts_vencidos){
+			printf("c\n");
+			timeouts_procesados++;
+			int max = RCFTP_BUFLEN;
+			int numseqResend = getdatatoresend((char *)mensaje.buffer,&max);
+			mensaje = construirMensajeRCFTP(numseqResend, longitud, buffer, ultimoMensaje, mensaje);
+			mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
 
-// FALTA IMPLEMENTAR EL ALGORITMO GO-BACK-N
-	printf("Algoritmo no implementado\n");
+			enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
+			addtimeout();
+		}
+	}
 }
-
-

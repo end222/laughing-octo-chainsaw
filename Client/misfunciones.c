@@ -462,36 +462,40 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 	bool ultimoMensajeConfirmado = false;
 	int tamanoRecv;
 	int longitud;
-	int numConfirmados = 0;
 	char buffer[RCFTP_BUFLEN];
 	int numseq = 0;
 	struct rcftp_msg mensaje;
-	int i = 0;
-	int iConf = 0;
 	struct rcftp_msg respuesta;
 	struct sockaddr remote;
 	socklen_t remotelen = 0;
 	int timeouts_procesados = 0;
 	while(ultimoMensajeConfirmado == false){
-		if(getfreespace() > 0 && !ultimoMensaje){
+		if(getfreespace() >= RCFTP_BUFLEN && !ultimoMensaje){
 			longitud = readtobuffer((char *)mensaje.buffer, RCFTP_BUFLEN);
+
 			if (longitud == 0){
 				ultimoMensaje = true;
 			}
+			
 			mensaje = construirMensajeRCFTP(numseq, longitud, buffer, ultimoMensaje, mensaje);
 			mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
 			numseq = numseq + longitud;
+			
 			enviar(socket, mensaje, servinfo->ai_addr, servinfo->ai_addrlen, servinfo->ai_flags);
 			addtimeout();
 			addsentdatatowindow((char *)mensaje.buffer,longitud);
 		}
+
 		tamanoRecv = recibir(socket, &respuesta, sizeof(respuesta), &remote, &remotelen);
+		
 		if(tamanoRecv > 0){
+			
 			printf("b\n");
+			
 			if(esMensajeValido(respuesta) && esLaRespuestaEsperadaVentana(mensaje, respuesta)){
-				printf("c\n");
 				canceltimeout();
 				freewindow(ntohl(respuesta.next));
+				
 				if(ultimoMensaje && respuesta.flags == mensaje.flags){
 					printf("d\n");
 					ultimoMensajeConfirmado = true;
@@ -502,11 +506,16 @@ void alg_ventana(int socket, struct addrinfo *servinfo,int window) {
 				ultimoMensajeConfirmado = true;
 			}
 		}
+
+		printf("%d\n",getnumtimeouts());
+		printf("Timeouts: %d Procesados: %d\n",timeouts_vencidos, timeouts_procesados);
+		printf("EspacioLibre: %d\n",getfreespace());
+		
 		if(timeouts_procesados != timeouts_vencidos){
-			printf("c\n");
 			timeouts_procesados++;
 			int max = RCFTP_BUFLEN;
 			int numseqResend = getdatatoresend((char *)mensaje.buffer,&max);
+		
 			mensaje = construirMensajeRCFTP(numseqResend, longitud, buffer, ultimoMensaje, mensaje);
 			mensaje.sum = xsum((char*)&mensaje, sizeof(struct rcftp_msg));
 

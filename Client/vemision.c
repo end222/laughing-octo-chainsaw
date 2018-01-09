@@ -52,8 +52,6 @@ static char vvacia=1; // para diferenciar entre vacía y llena si firstelem==las
 static uint32_t numseqfirst=0;
 
 bool perteneceVentana(uint32_t next){
-	printf("%u\n",next);
-	printf("%u\n",numseqfirst);
 	return (numseqfirst < next && next <= (numseqfirst + totalelems - getfreespace()));
 }
 

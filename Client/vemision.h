@@ -39,6 +39,8 @@
 /* cabeceras de funciones públicas VEMISION                             */
 /**************************************************************************/
 
+
+bool perteneceVentana(uint32_t next);
 /**
  * Establece el tamaño de la ventana de emisión (<=MAXVEMISION)
  * @param[in] tamaño a usar
